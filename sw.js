@@ -1,9 +1,17 @@
-const CACHE = 'dormitu-v1';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const CACHE = 'dormitu-v2';
+const BASE = '/dormitu/';
+
+const ASSETS = [
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.json',
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
+    caches.open(CACHE).then(c => {
+      return c.addAll(ASSETS).catch(() => {});
+    })
   );
   self.skipWaiting();
 });
@@ -18,15 +26,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Solo cache per assets locali, non per API Gemini
-  if (e.request.url.includes('googleapis.com')) return;
+  const url = e.request.url;
+  if (url.includes('api.brevo.com') || url.includes('googleapis.com')) return;
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-      if (res.ok) {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-      }
-      return res;
-    }))
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        if (res.ok && (url.includes('.mp3') || url.includes('.html') || url.includes('.json'))) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+    })
   );
 });

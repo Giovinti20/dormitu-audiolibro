@@ -8,15 +8,16 @@
 <meta name="apple-mobile-web-app-title" content="Dormitù">
 <meta name="theme-color" content="#06041a">
 <title>Dormitù — Audiolibro Magico</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%2306041a'/><text y='130' x='96' text-anchor='middle' font-size='110'>👑</text></svg>">
 <script>
-if(location.protocol==='https:'){
-  var l=document.createElement('link');
-  l.rel='manifest';l.href='manifest.json';
-  document.head.appendChild(l);
-}
-if('serviceWorker' in navigator && location.protocol==='https:'){
+// GitHub Pages è sempre HTTPS — registra SW e manifest sempre
+if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    const swPath = location.pathname.includes('/dormitu/')
+      ? '/dormitu/sw.js'
+      : '/sw.js';
+    navigator.serviceWorker.register(swPath).catch(()=>{});
   });
 }
 window.onerror=function(msg,src,line,col,err){
@@ -135,6 +136,58 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .form-error{font-size:.78rem;color:#e08080;text-align:center;min-height:16px;}
 .btn-start.loading{opacity:.7;pointer-events:none;}
 
+
+/* ── RETURN SCREEN ── */
+#returnScreen{
+  position:fixed;inset:0;z-index:200;
+  background:var(--night);
+  display:none;
+  flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:2rem 1.5rem;
+  animation:fadeIn .4s ease;
+}
+#returnScreen.show{display:flex;}
+@keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+
+.return-avatar{
+  width:90px;height:90px;border-radius:50%;
+  background:linear-gradient(135deg,var(--gold),#b8880f);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;font-weight:700;color:var(--night);
+  font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  margin-bottom:1.5rem;
+  box-shadow:0 0 40px rgba(212,168,67,.4);
+  animation:fl 3s ease-in-out infinite;
+}
+.return-title{
+  font-family:'Palatino Linotype','Palatino',Georgia,serif;
+  font-size:2rem;font-weight:300;
+  color:var(--gold-pale);text-align:center;
+  line-height:1.2;margin-bottom:.5rem;
+}
+.return-title em{font-style:italic;color:var(--lilac);}
+.return-sub{
+  font-size:1rem;color:rgba(220,212,255,.65);
+  text-align:center;margin-bottom:.5rem;
+}
+.return-fiabe{
+  font-size:.85rem;color:var(--gold);
+  text-align:center;margin-bottom:2.5rem;
+  opacity:.8;
+}
+.btn-return{
+  width:100%;max-width:340px;padding:1rem;
+  border-radius:16px;border:none;
+  background:linear-gradient(135deg,var(--gold),#b8880f);
+  color:var(--night);font-weight:700;font-size:1.05rem;
+  cursor:pointer;
+  box-shadow:0 0 30px rgba(212,168,67,.3);
+  transition:all .25s;
+  display:flex;align-items:center;justify-content:center;gap:.6rem;
+}
+.btn-return:hover{transform:translateY(-2px);}
+
 #welcome{position:fixed;inset:0;z-index:200;background:var(--night);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;transition:opacity .5s ease,transform .5s ease;}
 #welcome.hiding{opacity:0;transform:scale(.97);pointer-events:none;}
 .wlc-crown{font-size:4rem;filter:drop-shadow(0 0 30px var(--gold));animation:fl 3s ease-in-out infinite;margin-bottom:1.2rem;}
@@ -179,6 +232,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 <div id="sf"></div>
 
 <!-- WELCOME -->
+
+<!-- RETURN SCREEN — schermata di ritorno utenti già registrati -->
+<div id="returnScreen">
+  <div class="return-avatar" id="returnAvatar">👑</div>
+  <div class="return-title">Bentornata, <em id="returnNome">amica</em>!</div>
+  <p class="return-sub">Il regno di Sognoville ti aspettava</p>
+  <p class="return-fiabe" id="returnFiabe"></p>
+  <button class="btn-return" id="btnReturn">
+    <span>✦</span> Entra nel regno <span>✦</span>
+  </button>
+</div>
+
 <div id="welcome">
   <div class="wlc-crown">👑</div>
   <div class="wlc-title">Dormitù <em>nel regno<br>dei sogni</em></div>
@@ -367,6 +432,7 @@ function markDone(idx){done.add(idx);store.set('dormitu_done',JSON.stringify([..
 
 // ── SELECT STORY ──
 function selectStory(idx,autoplay=false){
+  // Stoppa sempre l'audio prima di cambiare fiaba
   stopAudio();
   currentIdx=idx;
   document.querySelectorAll('.story-item').forEach((el,i)=>el.classList.toggle('active',i===idx));
@@ -376,12 +442,15 @@ function selectStory(idx,autoplay=false){
   npIcon.textContent=s.icon;
   npTitle.textContent=s.title;
   storyText.textContent=s.text;
+  storyText.scrollTop=0;
   progFill.style.width='0%';
   timeEl.textContent='0:00';
   durEl.textContent='-:--';
+  // Reset completo stato player
   btnPlay.innerHTML='&#9654;';
-  btnPlay.classList.remove('playing');
+  btnPlay.classList.remove('playing','loading-state');
   btnPlay.disabled=false;
+  statusDot.classList.remove('on');
   btnPrev.disabled=idx===0;
   btnNext.disabled=idx===STORIES.length-1;
   setStatus('Premi ▶ per ascoltare');
@@ -483,6 +552,37 @@ const btnStart=document.getElementById('btnStart');
 const btnInstall=document.getElementById('btnInstall');
 const btnHdrInstall=document.getElementById('btnHdrInstall');
 
+// ── RETURN SCREEN ──
+const returnScreen=document.getElementById('returnScreen');
+const returnAvatar=document.getElementById('returnAvatar');
+const returnNomeEl=document.getElementById('returnNome');
+const returnFiabeEl=document.getElementById('returnFiabe');
+const btnReturn=document.getElementById('btnReturn');
+
+const savedNome=store.get('dormitu_nome');
+const hasVisited=store.get('dormitu_visited');
+
+if(hasVisited && savedNome){
+  // Utente già registrato — mostra schermata ritorno
+  welcomeEl.style.display='none';
+  returnScreen.classList.add('show');
+  // Avatar con iniziali
+  const parts=savedNome.trim().split(' ');
+  const iniziali=parts.map(w=>w[0]?w[0].toUpperCase():'').slice(0,2).join('');
+  returnAvatar.textContent=iniziali||'👑';
+  returnNomeEl.textContent=parts[0];
+  // Quante fiabe ascoltate
+  const doneN=done.size;
+  returnFiabeEl.textContent=doneN>0
+    ?'Hai già ascoltato '+doneN+' fiab'+(doneN===1?'a':'e')+' ✦'
+    :'50 fiabe ti aspettano ✦';
+  btnReturn.addEventListener('click',()=>{
+    returnScreen.classList.remove('show');
+  });
+} else if(hasVisited){
+  welcomeEl.style.display='none';
+}
+
 // ── BREVO CONFIG ──
 const BREVO_API_KEY = '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';
 const BREVO_LIST_ID = 50;
@@ -497,6 +597,11 @@ function showApp(){
   welcomeEl.classList.add('hiding');
   setTimeout(()=>{welcomeEl.style.display='none';},500);
   store.set('dormitu_visited','1');
+}
+
+// Salva nome per schermata ritorno
+function saveUserData(nome){
+  store.set('dormitu_nome', nome);
 }
 
 async function subscribeBrevo(nome, email){
@@ -549,6 +654,9 @@ btnStart.addEventListener('click', async () => {
   // Loading state
   btnStart.classList.add('loading');
   btnStart.textContent = '✦ Un momento… ✦';
+
+  // Salva nome localmente
+  saveUserData(nome);
 
   // Invia a Brevo
   await subscribeBrevo(nome, email);

@@ -490,7 +490,7 @@ async function subscribeBrevo(nome,email){
   try{
     const res=await fetch('https://api.brevo.com/v3/contacts',{
       method:'POST',
-      headers:{'Content-Type':'application/json','api-key':'INSERISCI_QUI_API_KEY_BREVO'},
+      headers:{'Content-Type':'application/json','api-key':'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'},
       body:JSON.stringify({email,attributes:{FIRSTNAME:nome},listIds:[50],updateEnabled:true})
     });
     return res.status===201||res.status===204||res.ok;
